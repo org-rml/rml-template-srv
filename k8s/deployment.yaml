@@ -1,0 +1,47 @@
+# TODO: Substituir SERVICE_NAME pelo nome real. Ex: auth, client, catalog
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rml-srv-SERVICE_NAME
+  namespace: sovarais
+  labels:
+    app: rml-srv-SERVICE_NAME
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rml-srv-SERVICE_NAME
+  template:
+    metadata:
+      labels:
+        app: rml-srv-SERVICE_NAME
+    spec:
+      containers:
+        - name: rml-srv-SERVICE_NAME
+          image: rodriigolima/rml-srv-SERVICE_NAME:latest # TODO: Atualizar imagem
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: rml-srv-SERVICE_NAME-config
+            - secretRef:
+                name: rml-srv-SERVICE_NAME-secret
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8080
+            initialDelaySeconds: 20
+            periodSeconds: 5
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
