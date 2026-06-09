@@ -1,29 +1,146 @@
-name: Template validation — rml-template-srv
+name: CI/CD — rml-srv-SERVICE_NAME
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, develop ]
   pull_request:
     branches: [ main ]
 
-# Este é um template de estrutura — não compila diretamente.
-# O CI apenas valida que os arquivos obrigatórios existem.
-# Quando usado como base para um serviço real, o CI do novo repo fará o build.
+env:
+  IMAGE: ghcr.io/org-rml/rml-srv-br.com.SERVICE_NAME
+
 jobs:
 
-  validate-structure:
+  build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - name: Validar arquivos obrigatórios do template
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Configure Maven settings (GitHub Packages)
         run: |
-          echo "Validando estrutura do template..."
-          test -f pom.xml             && echo "OK pom.xml"
-          test -f Dockerfile          && echo "OK Dockerfile"
-          test -f k8s/deployment.yaml && echo "OK k8s/deployment.yaml"
-          test -f k8s/service.yaml    && echo "OK k8s/service.yaml"
-          test -f k8s/configmap.yaml  && echo "OK k8s/configmap.yaml"
-          test -f src/main/resources/application.yml && echo "OK application.yml"
-          echo "Template structure OK"
+          mkdir -p ~/.m2
+          cat > ~/.m2/settings.xml <<EOF
+          <settings>
+            <servers>
+              <server>
+                <id>github</id>
+                <username>${{ github.actor }}</username>
+                <password>${{ secrets.PACKAGES_TOKEN }}</password>
+              </server>
+            </servers>
+          </settings>
+          EOF
+
+      - name: Build e testes
+        run: mvn --batch-mode dependency:go-offline clean verify
+
+  docker:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image_tag: ${{ steps.meta.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Login no GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extrai metadata da imagem
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=sha,prefix=,format=short
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build e push da imagem
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          build-args: |
+            GITHUB_ACTOR=${{ github.actor }}
+            PACKAGES_TOKEN=${{ secrets.PACKAGES_TOKEN }}
+
+  deploy-sandbox:
+    needs: docker
+    runs-on: ubuntu-latest
+    environment: sandbox
+    if: github.ref == 'refs/heads/develop'
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          repository: org-rml/rml-srv-SERVICE_NAME-config
+          ref: sandbox
+          token: ${{ secrets.CONFIG_REPO_TOKEN }}
+
+      - name: Bump values-version.yaml — SANDBOX (DEV)
+        run: |
+          TAG=${{ needs.docker.outputs.image_tag }}
+          sed -i "s|tag:.*|tag: \"${TAG}\"|" values-version.yaml
+          git config user.email "ci@org-rml.com"
+          git config user.name "CI Bot"
+          git commit -am "ci(sandbox): bump image to ${TAG}"
+          git push
+
+  deploy-staging:
+    needs: deploy-sandbox
+    runs-on: ubuntu-latest
+    environment: staging
+    if: github.ref == 'refs/heads/develop'
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          repository: org-rml/rml-srv-SERVICE_NAME-config
+          ref: staging
+          token: ${{ secrets.CONFIG_REPO_TOKEN }}
+
+      - name: Bump values-version.yaml — STAGING (HOM)
+        run: |
+          TAG=${{ needs.docker.outputs.image_tag }}
+          sed -i "s|tag:.*|tag: \"${TAG}\"|" values-version.yaml
+          git config user.email "ci@org-rml.com"
+          git config user.name "CI Bot"
+          git commit -am "ci(staging): bump image to ${TAG}"
+          git push
+
+  deploy-production:
+    needs: deploy-staging
+    runs-on: ubuntu-latest
+    environment: production
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          repository: org-rml/rml-srv-SERVICE_NAME-config
+          ref: production
+          token: ${{ secrets.CONFIG_REPO_TOKEN }}
+
+      - name: Bump values-version.yaml — PRODUCTION (PRD)
+        run: |
+          TAG=${{ needs.docker.outputs.image_tag }}
+          sed -i "s|tag:.*|tag: \"${TAG}\"|" values-version.yaml
+          git config user.email "ci@org-rml.com"
+          git config user.name "CI Bot"
+          git commit -am "ci(production): bump image to ${TAG}"
+          git push

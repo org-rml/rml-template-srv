@@ -12,11 +12,11 @@
 
     <!--
         TODO: Substitua os valores abaixo ao usar este template:
-          groupId    → com.rml.{seu-projeto}
+          groupId    → br.com.rml.{seu-projeto}
           artifactId → rml-srv-{dominio}-{projeto}   ex: rml-srv-auth-sovarais
           name       → nome legível do serviço
     -->
-    <groupId>com.rml.SERVICE_NAME</groupId>
+    <groupId>br.com.rml.SERVICE_NAME</groupId>
     <artifactId>rml-srv-SERVICE_NAME</artifactId>
     <version>1.0.0-SNAPSHOT</version>
     <packaging>jar</packaging>
@@ -36,7 +36,7 @@
 
         <!-- RML Common — bases de entidade, DTO, mapper, service, controller -->
         <dependency>
-            <groupId>com.rml</groupId>
+            <groupId>br.com.rml</groupId>
             <artifactId>rml-common</artifactId>
             <version>${rml.common.version}</version>
         </dependency>
@@ -149,9 +149,10 @@
     </build>
 
     <repositories>
+        <!-- GitHub Packages — rml-common (CI usa PACKAGES_TOKEN, dev usa PAT no settings-personal.xml) -->
         <repository>
-            <id>rml-nexus-group</id>
-            <url>${nexus.url}/repository/rml-group/</url>
+            <id>github</id>
+            <url>https://maven.pkg.github.com/org-rml/rml-common</url>
             <releases><enabled>true</enabled></releases>
             <snapshots><enabled>true</enabled></snapshots>
         </repository>
