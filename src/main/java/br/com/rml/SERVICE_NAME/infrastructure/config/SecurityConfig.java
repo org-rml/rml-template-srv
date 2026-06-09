@@ -9,26 +9,21 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 
 /**
- * TODO: Adaptar conforme necessidade do serviço.
- * Para serviços que não emitem token (apenas validam), adicionar JwtFilter aqui.
- * Para serviços públicos, liberar todos os endpoints.
+ * TODO: Adaptar conforme necessidade do serviço. Para serviços que não emitem
+ * token (apenas validam), adicionar JwtFilter aqui. Para serviços públicos,
+ * liberar todos os endpoints.
  */
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
 
-    @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        http
-            .csrf(AbstractHttpConfigurer::disable)
-            .sessionManagement(session ->
-                session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .authorizeHttpRequests(auth -> auth
-                // TODO: Configurar quais endpoints são públicos e quais requerem auth
-                .requestMatchers("/actuator/**", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
-                .anyRequest().authenticated()
-            );
+	@Bean
+	public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+		http.csrf(AbstractHttpConfigurer::disable)
+				.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+				.authorizeHttpRequests(auth -> auth
+						.anyRequest().permitAll());
 
-        return http.build();
-    }
+		return http.build();
+	}
 }
